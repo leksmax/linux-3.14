@@ -25,7 +25,6 @@
 #include <mali_kbase.h>
 #include <mali_kbase_pm.h>
 
-#if KBASE_PM_EN
 static u64 coarse_demand_get_core_mask(struct kbase_device *kbdev)
 {
 	if (kbdev->pm.active_count == 0)
@@ -52,11 +51,11 @@ static void coarse_demand_term(struct kbase_device *kbdev)
 	CSTD_UNUSED(kbdev);
 }
 
-/** The @ref struct kbase_pm_policy structure for the demand power policy.
+/** The @ref kbase_pm_policy structure for the demand power policy.
  *
  * This is the static structure that defines the demand power policy's callback and name.
  */
-const struct kbase_pm_policy kbase_pm_coarse_demand_policy_ops = {
+const kbase_pm_policy kbase_pm_coarse_demand_policy_ops = {
 	"coarse_demand",			/* name */
 	coarse_demand_init,			/* init */
 	coarse_demand_term,			/* term */
@@ -67,4 +66,3 @@ const struct kbase_pm_policy kbase_pm_coarse_demand_policy_ops = {
 };
 
 KBASE_EXPORT_TEST_API(kbase_pm_coarse_demand_policy_ops)
-#endif  /* KBASE_PM_EN */

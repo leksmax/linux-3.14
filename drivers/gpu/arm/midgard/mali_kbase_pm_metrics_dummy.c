@@ -25,8 +25,7 @@
 #include <mali_kbase.h>
 #include <mali_kbase_pm.h>
 
-#if KBASE_PM_EN
-void kbase_pm_register_vsync_callback(struct kbase_device *kbdev)
+void kbase_pm_register_vsync_callback(kbase_device *kbdev)
 {
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
 
@@ -34,8 +33,7 @@ void kbase_pm_register_vsync_callback(struct kbase_device *kbdev)
 	kbdev->pm.metrics.platform_data = NULL;
 }
 
-void kbase_pm_unregister_vsync_callback(struct kbase_device *kbdev)
+void kbase_pm_unregister_vsync_callback(kbase_device *kbdev)
 {
 	KBASE_DEBUG_ASSERT(kbdev != NULL);
 }
-#endif  /* KBASE_PM_EN */

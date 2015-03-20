@@ -3856,7 +3856,7 @@ static void __exit rk3288_lcdc_module_exit(void)
 	platform_driver_unregister(&rk3288_lcdc_driver);
 }
 
-fs_initcall(rk3288_lcdc_module_init);
+late_initcall(rk3288_lcdc_module_init);
 module_exit(rk3288_lcdc_module_exit);
 
 

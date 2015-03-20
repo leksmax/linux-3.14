@@ -488,6 +488,8 @@ static void clk_unprepare_unused_subtree(struct clk *clk)
 
 	if (clk->flags & CLK_IGNORE_UNUSED)
 		return;
+	if (1)
+		return;
 
 	if (__clk_is_prepared(clk)) {
 		if (clk->ops->unprepare_unused)

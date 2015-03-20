@@ -1179,7 +1179,6 @@ static int rk32_edp_enable(void)
 	int ret = 0;
 	struct rk32_edp *edp = rk32_edp;
 
-
 	rk32_edp_clk_enable(edp);
 	rk32_edp_pre_init(edp);
 	rk32_edp_init_edp(edp);
@@ -1231,6 +1230,7 @@ static int  rk32_edp_disable(void)
 {
 	struct rk32_edp *edp = rk32_edp;
 
+	return 0;
 	disable_irq(edp->irq);
 	rk32_edp_reset(edp);
 	rk32_edp_analog_power_ctr(edp, 0);
@@ -1432,9 +1432,9 @@ static int rk32_edp_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "cannot claim IRQ %d\n", edp->irq);
 		return ret;
 	}
-	disable_irq_nosync(edp->irq);
-	if (!support_uboot_display())
-		rk32_edp_clk_disable(edp);
+	disable_irq(edp->irq);
+//	if (!support_uboot_display())
+//		rk32_edp_clk_disable(edp);
 	rk32_edp = edp;
 	rk_fb_trsm_ops_register(&trsm_edp_ops, SCREEN_EDP);
 #if defined(CONFIG_DEBUG_FS)
@@ -1483,5 +1483,5 @@ static void __exit rk32_edp_module_exit(void)
 
 }
 
-fs_initcall(rk32_edp_module_init);
+late_initcall(rk32_edp_module_init);
 module_exit(rk32_edp_module_exit);

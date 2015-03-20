@@ -29,6 +29,7 @@
 #include <linux/rk_fb.h>
 #include <linux/linux_logo.h>
 #include <linux/dma-mapping.h>
+#include <linux/regulator/consumer.h>
 
 #if defined(CONFIG_RK_HDMI)
 #include "hdmi/rk_hdmi.h"
@@ -751,6 +752,8 @@ static int get_extend_fb_id(struct fb_info *info)
 	int fb_id = 0;
 	char *id = info->fix.id;
 	struct rk_lcdc_driver *dev_drv = (struct rk_lcdc_driver *)info->par;
+	if (info == NULL)
+		return 0;
 
 	if (!strcmp(id, "fb0"))
 		fb_id = 0;
@@ -3184,9 +3187,9 @@ static struct fb_ops fb_ops = {
 	.fb_read = rk_fb_read,
 	.fb_write = rk_fb_write,
 	.fb_setcolreg = fb_setcolreg,
-	.fb_fillrect = cfb_fillrect,
-	.fb_copyarea = cfb_copyarea,
-	.fb_imageblit = cfb_imageblit,
+	.fb_fillrect = sys_fillrect,
+	.fb_copyarea = sys_copyarea,
+	.fb_imageblit = sys_imageblit,
 };
 
 static struct fb_var_screeninfo def_var = {
@@ -3855,6 +3858,7 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 		fbi->fbops = &fb_ops;
 		fbi->flags = FBINFO_FLAG_DEFAULT;
 		fbi->pseudo_palette = dev_drv->win[i]->pseudo_pal;
+		rk_fb->fb[rk_fb->num_fb] = fbi;
 		ret = register_framebuffer(fbi);
 		if (ret < 0) {
 			dev_err(&fb_pdev->dev,
@@ -3863,12 +3867,18 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 			return ret;
 		}
 		rkfb_create_sysfs(fbi);
-		rk_fb->fb[rk_fb->num_fb] = fbi;
 		dev_info(fbi->dev, "rockchip framebuffer registerd:%s\n",
 			 fbi->fix.id);
 		rk_fb->num_fb++;
 
 		if (i == 0) {
+			struct regulator *supply;
+			supply = devm_regulator_get(&fb_pdev->dev, "power");
+			if (IS_ERR(supply))
+				return PTR_ERR(supply);
+			if (regulator_enable(supply) < 0)
+				dev_err(&fb_pdev->dev, "failed to enable supply\n");
+
 			init_waitqueue_head(&dev_drv->vsync_info.wait);
 			init_waitqueue_head(&dev_drv->update_regs_wait);
 			ret = device_create_file(fbi->dev, &dev_attr_vsync);

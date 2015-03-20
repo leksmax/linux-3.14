@@ -60,96 +60,6 @@ struct cpufreq_interactive_cpuinfo {
 
 static DEFINE_PER_CPU(struct cpufreq_interactive_cpuinfo, cpuinfo);
 
-<<<<<<< HEAD
-/* A realtime thread handles frequency scaling */
-static struct task_struct *updown_task;
-static cpumask_t updown_cpumask;
-static spinlock_t updown_state_lock;
-
-/*
- * Mapping from loads to CPU frequencies to jump to.  When we exceed a
- * certain load we will immediately jump to the corresponding frequency.
- * Default: 85% -> max frequency.
- */
-struct hispeed_freq_level {
-	unsigned int load;
-	unsigned int freq;
-};
-#define DEFAULT_GO_HISPEED_LOAD 85
-static struct hispeed_freq_level *hispeed_freqs;
-static int nhispeed_freqs;
-static spinlock_t hispeed_freqs_lock;
-
-/*
- * The minimum amount of time to spend at a frequency before we can ramp down.
- */
-#define DEFAULT_MIN_SAMPLE_TIME (80 * USEC_PER_MSEC)
-static unsigned long min_sample_time;
-
-/*
- * The sample rate of the timer used to increase frequency
- */
-#define DEFAULT_TIMER_RATE (20 * USEC_PER_MSEC)
-static unsigned long timer_rate;
-
-/*
- * Wait this long before raising speed above hispeed, by default a single
- * timer interval.
- */
-#define DEFAULT_ABOVE_HISPEED_DELAY DEFAULT_TIMER_RATE
-static unsigned int default_above_hispeed_delay[] = {
-	DEFAULT_ABOVE_HISPEED_DELAY };
-static spinlock_t above_hispeed_delay_lock;
-static unsigned int *above_hispeed_delay = default_above_hispeed_delay;
-static int nabove_hispeed_delay = ARRAY_SIZE(default_above_hispeed_delay);
-
-/*
- * Boost pulse to hispeed on touchscreen input.
- */
-
-static int input_boost_val;
-
-/*
- * Non-zero means longer-term speed boost active.
- */
-
-static int boost_val;
-
-static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
-		unsigned int event);
-
-#ifndef CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE
-static
-#endif
-struct cpufreq_governor cpufreq_gov_interactive = {
-	.name = "interactive",
-	.governor = cpufreq_governor_interactive,
-	.max_transition_latency = 10000000,
-	.owner = THIS_MODULE,
-};
-
-static void rearm_idle_timer(struct cpufreq_interactive_cpuinfo *pcpu)
-{
-	pcpu->time_in_idle = get_cpu_idle_time(smp_processor_id(),
-					       &pcpu->idle_exit_time, 1);
-	mod_timer_pinned(&pcpu->cpu_timer,
-		jiffies + usecs_to_jiffies(timer_rate));
-}
-
-static void arm_idle_timer(struct cpufreq_interactive_cpuinfo *pcpu)
-{
-	pcpu->timer_idlecancel = 0;
-	rearm_idle_timer(pcpu);
-}
-
-static void del_idle_timer(struct cpufreq_interactive_cpuinfo *pcpu)
-{
-	del_timer(&pcpu->cpu_timer);
-	pcpu->timer_idlecancel = 0;
-}
-
-static unsigned int freq_to_above_hispeed_delay(unsigned int freq)
-=======
 /* realtime thread handles frequency scaling */
 static struct task_struct *speedchange_task;
 static cpumask_t speedchange_cpumask;
@@ -274,81 +184,11 @@ static void cpufreq_interactive_timer_start(
 static unsigned int freq_to_above_hispeed_delay(
 	struct cpufreq_interactive_tunables *tunables,
 	unsigned int freq)
->>>>>>> android-branch/android-3.14
 {
 	int i;
 	unsigned int ret;
 	unsigned long flags;
 
-<<<<<<< HEAD
-	spin_lock_irqsave(&above_hispeed_delay_lock, flags);
-
-	for (i = 0; i < nabove_hispeed_delay - 1 &&
-			freq >= above_hispeed_delay[i+1]; i += 2)
-		;
-
-	ret = above_hispeed_delay[i];
-	spin_unlock_irqrestore(&above_hispeed_delay_lock, flags);
-	return ret;
-}
-
-static unsigned int next_hispeed_freq(struct cpufreq_interactive_cpuinfo *pcpu)
-{
-	unsigned int ret = pcpu->policy->max;
-	unsigned long flags;
-	int i;
-
-	BUG_ON(hispeed_freqs == NULL);
-
-	spin_lock_irqsave(&hispeed_freqs_lock, flags);
-	for (i = 0; i < nhispeed_freqs; i++) {
-		if (hispeed_freqs[i].freq > pcpu->target_freq) {
-			ret = hispeed_freqs[i].freq;
-			break;
-		}
-	}
-	spin_unlock_irqrestore(&hispeed_freqs_lock, flags);
-
-	return ret;
-}
-
-static unsigned int load_to_hispeed_freq(unsigned int load)
-{
-	unsigned int ret;
-	unsigned long flags;
-	int i;
-
-	BUG_ON(hispeed_freqs == NULL);
-
-	spin_lock_irqsave(&hispeed_freqs_lock, flags);
-	ret = hispeed_freqs[nhispeed_freqs - 1].freq;
-	for (i = 1; i < nhispeed_freqs; i++) {
-		if (load < hispeed_freqs[i].load) {
-			ret = hispeed_freqs[i - 1].freq;
-			break;
-		}
-	}
-	spin_unlock_irqrestore(&hispeed_freqs_lock, flags);
-
-	return ret;
-}
-
-static void cpufreq_interactive_timer(unsigned long data)
-{
-	u64 now;
-	unsigned int delta_idle;
-	unsigned int delta_time;
-	int cpu_load;
-	int load_since_change;
-	int need_wakeup;
-	u64 time_in_idle;
-	u64 idle_exit_time;
-	struct cpufreq_interactive_cpuinfo *pcpu =
-		&per_cpu(cpuinfo, data);
-	u64 now_idle;
-	unsigned int hispeed_freq;
-	unsigned int new_freq;
-=======
 	spin_lock_irqsave(&tunables->above_hispeed_delay_lock, flags);
 
 	for (i = 0; i < tunables->nabove_hispeed_delay - 1 &&
@@ -507,7 +347,6 @@ static void cpufreq_interactive_timer(unsigned long data)
 		pcpu->policy->governor_data;
 	unsigned int new_freq;
 	unsigned int loadadjfreq;
->>>>>>> android-branch/android-3.14
 	unsigned int index;
 	unsigned long flags;
 
@@ -516,67 +355,6 @@ static void cpufreq_interactive_timer(unsigned long data)
 	if (!pcpu->governor_enabled)
 		goto exit;
 
-<<<<<<< HEAD
-	time_in_idle = pcpu->time_in_idle;
-	idle_exit_time = pcpu->idle_exit_time;
-	now_idle = get_cpu_idle_time(data, &now, 1);
-	delta_idle = (unsigned int)(now_idle - time_in_idle);
-	delta_time = (unsigned int)(now - idle_exit_time);
-
-	/*
-	 * If timer ran less than 1ms after short-term sample started, retry.
-	 */
-	if (delta_time < 1000)
-		goto rearm;
-
-	if (delta_idle > delta_time)
-		cpu_load = 0;
-	else
-		cpu_load = 100 * (delta_time - delta_idle) / delta_time;
-
-	delta_idle = (unsigned int)(now_idle - pcpu->target_set_time_in_idle);
-	delta_time = (unsigned int)(now - pcpu->target_set_time);
-
-	if ((delta_time == 0) || (delta_idle > delta_time))
-		load_since_change = 0;
-	else
-		load_since_change =
-			100 * (delta_time - delta_idle) / delta_time;
-
-	/*
-	 * Choose greater of short-term load (since last idle timer
-	 * started or timer function re-armed itself) or long-term load
-	 * (since last frequency change).
-	 */
-	if (load_since_change > cpu_load)
-		cpu_load = load_since_change;
-
-	/*
-	 * The first hispeed_freq level has the lowest load.  Only boost if
-	 * we excced that value.
-	 */
-	if (cpu_load >= hispeed_freqs[0].load || boost_val) {
-		hispeed_freq = load_to_hispeed_freq(cpu_load);
-		if (pcpu->target_freq < hispeed_freq) {
-			new_freq = hispeed_freq;
-		} else {
-			new_freq = next_hispeed_freq(pcpu) * cpu_load / 100;
-
-			if (new_freq < hispeed_freq)
-				new_freq = hispeed_freq;
-		}
-	} else {
-		hispeed_freq = next_hispeed_freq(pcpu);
-		new_freq = hispeed_freq * cpu_load / 100;
-	}
-
-	if (pcpu->target_freq >= hispeed_freqs[0].freq &&
-	    new_freq > pcpu->target_freq &&
-	    now - pcpu->hispeed_validate_time <
-	    freq_to_above_hispeed_delay(pcpu->target_freq)) {
-		trace_cpufreq_interactive_notyet(data, cpu_load,
-						pcpu->target_freq, new_freq);
-=======
 	spin_lock_irqsave(&pcpu->load_lock, flags);
 	now = update_load(data);
 	delta_time = (unsigned int)(now - pcpu->cputime_speedadj_timestamp);
@@ -616,23 +394,15 @@ static void cpufreq_interactive_timer(unsigned long data)
 			data, cpu_load, pcpu->target_freq,
 			pcpu->policy->cur, new_freq);
 		spin_unlock_irqrestore(&pcpu->target_freq_lock, flags);
->>>>>>> android-branch/android-3.14
 		goto rearm;
 	}
 
 	pcpu->hispeed_validate_time = now;
 
 	if (cpufreq_frequency_table_target(pcpu->policy, pcpu->freq_table,
-<<<<<<< HEAD
-					   new_freq, CPUFREQ_RELATION_H,
-					   &index)) {
-		pr_warn_once("timer %d: cpufreq_frequency_table_target error\n",
-			     (int) data);
-=======
 					   new_freq, CPUFREQ_RELATION_L,
 					   &index)) {
 		spin_unlock_irqrestore(&pcpu->target_freq_lock, flags);
->>>>>>> android-branch/android-3.14
 		goto rearm;
 	}
 
@@ -643,45 +413,16 @@ static void cpufreq_interactive_timer(unsigned long data)
 	 * floor frequency for the minimum sample time since last validated.
 	 */
 	if (new_freq < pcpu->floor_freq) {
-<<<<<<< HEAD
-		if (now - pcpu->floor_validate_time < min_sample_time) {
-			trace_cpufreq_interactive_notyet(data, cpu_load,
-							 pcpu->target_freq,
-							 new_freq);
-=======
 		if (now - pcpu->floor_validate_time <
 				tunables->min_sample_time) {
 			trace_cpufreq_interactive_notyet(
 				data, cpu_load, pcpu->target_freq,
 				pcpu->policy->cur, new_freq);
 			spin_unlock_irqrestore(&pcpu->target_freq_lock, flags);
->>>>>>> android-branch/android-3.14
 			goto rearm;
 		}
 	}
 
-<<<<<<< HEAD
-	spin_lock_irqsave(&updown_state_lock, flags);
-	if (pcpu->target_freq != new_freq) {
-		trace_cpufreq_interactive_target(data, cpu_load,
-						 pcpu->target_freq, new_freq);
-		pcpu->target_set_time_in_idle = now_idle;
-		pcpu->target_freq = new_freq;
-		pcpu->target_set_time = now;
-		cpumask_set_cpu(data, &updown_cpumask);
-		need_wakeup = 1;
-	} else {
-		trace_cpufreq_interactive_already(data, cpu_load,
-						  pcpu->target_freq, new_freq);
-		need_wakeup = 0;
-	}
-	pcpu->floor_freq = new_freq;
-	pcpu->floor_validate_time = now;
-	spin_unlock_irqrestore(&updown_state_lock, flags);
-
-	if (need_wakeup)
-		wake_up_process(updown_task);
-=======
 	/*
 	 * Update the timestamp for checking whether speed has been held at
 	 * or above the selected frequency for a minimum of min_sample_time,
@@ -715,7 +456,6 @@ static void cpufreq_interactive_timer(unsigned long data)
 	wake_up_process(speedchange_task);
 
 rearm_if_notmax:
->>>>>>> android-branch/android-3.14
 	/*
 	 * Already set max speed and don't see a need to change that,
 	 * wait until next idle to re-evaluate, don't need timer.
@@ -724,20 +464,8 @@ rearm_if_notmax:
 		goto exit;
 
 rearm:
-<<<<<<< HEAD
-	if (!timer_pending(&pcpu->cpu_timer)) {
-		/*
-		 * If already at min, cancel the timer if that CPU goes idle.
-		 * We don't need to re-evaluate speed until the next idle exit.
-		 */
-		if (pcpu->target_freq == pcpu->policy->min)
-			pcpu->timer_idlecancel = 1;
-		rearm_idle_timer(pcpu);
-	}
-=======
 	if (!timer_pending(&pcpu->cpu_timer))
 		cpufreq_interactive_timer_resched(pcpu);
->>>>>>> android-branch/android-3.14
 
 exit:
 	up_read(&pcpu->enable_sem);
@@ -760,10 +488,6 @@ static void cpufreq_interactive_idle_start(void)
 	pending = timer_pending(&pcpu->cpu_timer);
 
 	if (pcpu->target_freq != pcpu->policy->min) {
-<<<<<<< HEAD
-#ifdef CONFIG_SMP
-=======
->>>>>>> android-branch/android-3.14
 		/*
 		 * Entering idle while not at lowest speed.  On some
 		 * platforms this can hold the other CPU(s) at that speed
@@ -773,21 +497,7 @@ static void cpufreq_interactive_idle_start(void)
 		 * the CPUFreq driver.
 		 */
 		if (!pending)
-<<<<<<< HEAD
-			arm_idle_timer(pcpu);
-#endif
-	} else {
-		/*
-		 * If at min speed and entering idle after load has
-		 * already been evaluated, and a timer has been set just in
-		 * case the CPU suddenly goes busy, cancel that timer.  The
-		 * CPU didn't go busy; we'll recheck things upon idle exit.
-		 */
-		if (pending && pcpu->timer_idlecancel)
-			del_idle_timer(pcpu);
-=======
 			cpufreq_interactive_timer_resched(pcpu);
->>>>>>> android-branch/android-3.14
 	}
 
 	up_read(&pcpu->enable_sem);
@@ -806,66 +516,6 @@ static void cpufreq_interactive_idle_end(void)
 	}
 
 	/* Arm the timer for 1-2 ticks later if not already. */
-<<<<<<< HEAD
-	if (!timer_pending(&pcpu->cpu_timer))
-		arm_idle_timer(pcpu);
-
-
-	up_read(&pcpu->enable_sem);
-}
-
-static int cpufreq_interactive_get_max_freq(struct cpufreq_policy *policy)
-{
-	struct cpufreq_interactive_cpuinfo *pcpu;
-	unsigned int max_freq = 0;
-	unsigned int i;
-
-	/*
-	 * Calculate the max frequency over all affected cpu's
-	 * and use that to set the target frequency.  This
-	 * handles the case where setting the frequency of one
-	 * cpu causes multiple to change.  In that case we
-	 * never want to down-clock related cpu's just because
-	 * one cpu found itself idle and requested a change.
-	 * When up-clocking we want that request to go through
-	 * and related cpu's will be dragged along.
-	 *
-	 * NB: this calculation is racey because target_freq is
-	 * set under the updown_state_lock (and not held here)
-	 */
-	for_each_cpu(i, policy->cpus) {
-		pcpu = &per_cpu(cpuinfo, i);
-
-		if (pcpu->target_freq > max_freq)
-			max_freq = pcpu->target_freq;
-	}
-
-	return max_freq;
-}
-
-static void cpufreq_interactive_adjust_cpu(unsigned int cpu,
-					   struct cpufreq_policy *policy)
-{
-	unsigned int max_freq;
-	unsigned int cur_freq;
-
-	max_freq = cpufreq_interactive_get_max_freq(policy);
-	cur_freq = policy->cur;
-
-	if (max_freq == 0 || max_freq == cur_freq)
-		return;
-
-	/* NB: trace before call as it may block for a while */
-	if (max_freq < cur_freq)
-		trace_cpufreq_interactive_down(cpu, max_freq, cur_freq);
-	else
-		trace_cpufreq_interactive_up(cpu, max_freq, cur_freq);
-
-	__cpufreq_driver_target(policy, max_freq, CPUFREQ_RELATION_H);
-}
-
-static int cpufreq_interactive_updown_task(void *data)
-=======
 	if (!timer_pending(&pcpu->cpu_timer)) {
 		cpufreq_interactive_timer_resched(pcpu);
 	} else if (time_after_eq(jiffies, pcpu->cpu_timer.expires)) {
@@ -878,7 +528,6 @@ static int cpufreq_interactive_updown_task(void *data)
 }
 
 static int cpufreq_interactive_speedchange_task(void *data)
->>>>>>> android-branch/android-3.14
 {
 	unsigned int cpu;
 	cpumask_t tmp_mask;
@@ -887,46 +536,16 @@ static int cpufreq_interactive_speedchange_task(void *data)
 
 	while (1) {
 		set_current_state(TASK_INTERRUPTIBLE);
-<<<<<<< HEAD
-		spin_lock_irqsave(&updown_state_lock, flags);
-
-		if (cpumask_empty(&updown_cpumask)) {
-			spin_unlock_irqrestore(&updown_state_lock, flags);
-=======
 		spin_lock_irqsave(&speedchange_cpumask_lock, flags);
 
 		if (cpumask_empty(&speedchange_cpumask)) {
 			spin_unlock_irqrestore(&speedchange_cpumask_lock,
 					       flags);
->>>>>>> android-branch/android-3.14
 			schedule();
 
 			if (kthread_should_stop())
 				break;
 
-<<<<<<< HEAD
-			spin_lock_irqsave(&updown_state_lock, flags);
-		}
-
-		set_current_state(TASK_RUNNING);
-		tmp_mask = updown_cpumask;
-		cpumask_clear(&updown_cpumask);
-		spin_unlock_irqrestore(&updown_state_lock, flags);
-
-		for_each_cpu(cpu, &tmp_mask) {
-			pcpu = &per_cpu(cpuinfo, cpu);
-
-			down_write(&pcpu->policy->rwsem);
-
-			if (likely(down_read_trylock(&pcpu->enable_sem))) {
-				if (likely(pcpu->governor_enabled))
-					cpufreq_interactive_adjust_cpu(cpu,
-								pcpu->policy);
-				up_read(&pcpu->enable_sem);
-			}
-
-			up_write(&pcpu->policy->rwsem);
-=======
 			spin_lock_irqsave(&speedchange_cpumask_lock, flags);
 		}
 
@@ -964,42 +583,12 @@ static int cpufreq_interactive_speedchange_task(void *data)
 						     pcpu->policy->cur);
 
 			up_read(&pcpu->enable_sem);
->>>>>>> android-branch/android-3.14
 		}
 	}
 
 	return 0;
 }
 
-<<<<<<< HEAD
-static void cpufreq_interactive_boost(void)
-{
-	int i;
-	int anyboost = 0;
-	unsigned long flags;
-	unsigned int hispeed_freq;
-	struct cpufreq_interactive_cpuinfo *pcpu;
-
-	spin_lock_irqsave(&updown_state_lock, flags);
-
-	for_each_online_cpu(i) {
-		pcpu = &per_cpu(cpuinfo, i);
-
-		if (!down_read_trylock(&pcpu->enable_sem))
-			continue;
-		if (!pcpu->governor_enabled) {
-			up_read(&pcpu->enable_sem);
-			continue;
-		}
-
-		hispeed_freq = next_hispeed_freq(pcpu);
-		if (pcpu->target_freq < hispeed_freq) {
-			pcpu->target_freq = hispeed_freq;
-			cpumask_set_cpu(i, &updown_cpumask);
-			pcpu->target_set_time_in_idle =
-				get_cpu_idle_time(i, &pcpu->target_set_time, 1);
-			pcpu->hispeed_validate_time = pcpu->target_set_time;
-=======
 static void cpufreq_interactive_boost(struct cpufreq_interactive_tunables *tunables)
 {
 	int i;
@@ -1022,7 +611,6 @@ static void cpufreq_interactive_boost(struct cpufreq_interactive_tunables *tunab
 			cpumask_set_cpu(i, &speedchange_cpumask);
 			pcpu->hispeed_validate_time =
 				ktime_to_us(ktime_get());
->>>>>>> android-branch/android-3.14
 			anyboost = 1;
 		}
 
@@ -1031,108 +619,6 @@ static void cpufreq_interactive_boost(struct cpufreq_interactive_tunables *tunab
 		 * validated.
 		 */
 
-<<<<<<< HEAD
-		pcpu->floor_freq = hispeed_freq;
-		pcpu->floor_validate_time = ktime_to_us(ktime_get());
-		up_read(&pcpu->enable_sem);
-	}
-
-	spin_unlock_irqrestore(&updown_state_lock, flags);
-
-	if (anyboost)
-		wake_up_process(updown_task);
-}
-
-/*
- * Pulsed boost on input event raises CPUs to hispeed_freq and lets
- * usual algorithm of min_sample_time  decide when to allow speed
- * to drop.
- */
-
-static void cpufreq_interactive_input_event(struct input_handle *handle,
-					    unsigned int type,
-					    unsigned int code, int value)
-{
-	if (input_boost_val && type == EV_SYN && code == SYN_REPORT) {
-		trace_cpufreq_interactive_boost("input");
-		cpufreq_interactive_boost();
-	}
-}
-
-static int cpufreq_interactive_input_connect(struct input_handler *handler,
-					     struct input_dev *dev,
-					     const struct input_device_id *id)
-{
-	struct input_handle *handle;
-	int error;
-
-	handle = kzalloc(sizeof(struct input_handle), GFP_KERNEL);
-	if (!handle) {
-		pr_warn("%s: no memory to register %s\n", __func__, dev->name);
-		return -ENOMEM;
-	}
-
-	handle->dev = dev;
-	handle->handler = handler;
-	handle->name = "cpufreq_interactive";
-
-	error = input_register_handle(handle);
-	if (error) {
-		pr_warn("%s: failed to register %s, error %d\n", __func__,
-		    dev->name, error);
-		goto err;
-	}
-
-	error = input_open_device(handle);
-	if (error) {
-		pr_warn("%s: open(%s) failed, error %d\n", __func__,
-		    handle->dev->name, error);
-		goto err_unregister;
-	}
-	return 0;
-err_unregister:
-	input_unregister_handle(handle);
-err:
-	kfree(handle);
-	return error;
-}
-
-static void cpufreq_interactive_input_disconnect(struct input_handle *handle)
-{
-	input_close_device(handle);
-	input_unregister_handle(handle);
-	kfree(handle);
-}
-
-static const struct input_device_id cpufreq_interactive_ids[] = {
-	{
-		.flags = INPUT_DEVICE_ID_MATCH_EVBIT |
-			 INPUT_DEVICE_ID_MATCH_ABSBIT,
-		.evbit = { BIT_MASK(EV_ABS) },
-		.absbit = { [BIT_WORD(ABS_MT_POSITION_X)] =
-			    BIT_MASK(ABS_MT_POSITION_X) |
-			    BIT_MASK(ABS_MT_POSITION_Y) },
-	}, /* multi-touch touchscreen */
-	{
-		.flags = INPUT_DEVICE_ID_MATCH_EVBIT,
-		.evbit = { BIT_MASK(EV_KEY) },
-		.keybit = { [BIT_WORD(BTN_LEFT)] = BIT_MASK(BTN_LEFT) },
-	}, /* pointer (e.g. trackpad, mouse) */
-	{
-		.flags = INPUT_DEVICE_ID_MATCH_EVBIT,
-		.evbit = { BIT_MASK(EV_KEY) },
-		.keybit = { [BIT_WORD(KEY_ESC)] = BIT_MASK(KEY_ESC) },
-	}, /* keyboard */
-	{ },
-};
-
-static struct input_handler cpufreq_interactive_input_handler = {
-	.event          = cpufreq_interactive_input_event,
-	.connect        = cpufreq_interactive_input_connect,
-	.disconnect     = cpufreq_interactive_input_disconnect,
-	.name           = "cpufreq_interactive",
-	.id_table       = cpufreq_interactive_ids,
-=======
 		pcpu->floor_freq = tunables->hispeed_freq;
 		pcpu->floor_validate_time = ktime_to_us(ktime_get());
 		spin_unlock_irqrestore(&pcpu->target_freq_lock, flags[1]);
@@ -1186,7 +672,6 @@ static int cpufreq_interactive_notifier(
 
 static struct notifier_block cpufreq_notifier_block = {
 	.notifier_call = cpufreq_interactive_notifier,
->>>>>>> android-branch/android-3.14
 };
 
 static unsigned int *get_tokenized_data(const char *buf, int *num_tokens)
@@ -1201,12 +686,9 @@ static unsigned int *get_tokenized_data(const char *buf, int *num_tokens)
 	while ((cp = strpbrk(cp + 1, " :")))
 		ntokens++;
 
-<<<<<<< HEAD
-=======
 	if (!(ntokens & 0x1))
 		goto err;
 
->>>>>>> android-branch/android-3.14
 	tokenized_data = kmalloc(ntokens * sizeof(unsigned int), GFP_KERNEL);
 	if (!tokenized_data) {
 		err = -ENOMEM;
@@ -1237,72 +719,14 @@ err:
 	return ERR_PTR(err);
 }
 
-<<<<<<< HEAD
-static ssize_t show_above_hispeed_delay(struct kobject *kobj,
-					struct attribute *attr, char *buf)
-=======
 static ssize_t show_target_loads(
 	struct cpufreq_interactive_tunables *tunables,
 	char *buf)
->>>>>>> android-branch/android-3.14
 {
 	int i;
 	ssize_t ret = 0;
 	unsigned long flags;
 
-<<<<<<< HEAD
-	spin_lock_irqsave(&above_hispeed_delay_lock, flags);
-
-	for (i = 0; i < nabove_hispeed_delay; i++)
-		ret += sprintf(buf + ret, "%u%s", above_hispeed_delay[i],
-			       i & 0x1 ? ":" : " ");
-
-	ret += sprintf(buf + ret, "\n");
-	spin_unlock_irqrestore(&above_hispeed_delay_lock, flags);
-	return ret;
-}
-
-static ssize_t store_above_hispeed_delay(struct kobject *kobj,
-			struct attribute *attr, const char *buf, size_t count)
-{
-	int ntokens, i;
-	unsigned int *new_above_hispeed_delay = NULL;
-	unsigned long flags;
-
-	new_above_hispeed_delay = get_tokenized_data(buf, &ntokens);
-	if (IS_ERR(new_above_hispeed_delay))
-		return PTR_RET(new_above_hispeed_delay);
-	if (ntokens % 2 != 1) {
-		kfree(new_above_hispeed_delay);
-		return -EINVAL;
-	}
-
-	/* Make sure frequencies are in ascending order. */
-	for (i = 3; i < ntokens; i += 2) {
-		if (new_above_hispeed_delay[i] <=
-		    new_above_hispeed_delay[i - 2]) {
-			kfree(new_above_hispeed_delay);
-			return -EINVAL;
-		}
-	}
-
-	spin_lock_irqsave(&above_hispeed_delay_lock, flags);
-	if (above_hispeed_delay != default_above_hispeed_delay)
-		kfree(above_hispeed_delay);
-	above_hispeed_delay = new_above_hispeed_delay;
-	nabove_hispeed_delay = ntokens;
-	spin_unlock_irqrestore(&above_hispeed_delay_lock, flags);
-	return count;
-
-}
-
-static struct global_attr above_hispeed_delay_attr =
-	__ATTR(above_hispeed_delay, S_IRUGO | S_IWUSR,
-		show_above_hispeed_delay, store_above_hispeed_delay);
-
-static ssize_t show_hispeed_freq(struct kobject *kobj,
-				 struct attribute *attr, char *buf)
-=======
 	spin_lock_irqsave(&tunables->target_loads_lock, flags);
 
 	for (i = 0; i < tunables->ntarget_loads; i++)
@@ -1337,87 +761,11 @@ static ssize_t store_target_loads(
 
 static ssize_t show_above_hispeed_delay(
 	struct cpufreq_interactive_tunables *tunables, char *buf)
->>>>>>> android-branch/android-3.14
 {
 	int i;
 	ssize_t ret = 0;
 	unsigned long flags;
 
-<<<<<<< HEAD
-	spin_lock_irqsave(&hispeed_freqs_lock, flags);
-	for (i = 0; i < nhispeed_freqs; i++) {
-		ret += sprintf(buf + ret, "%s%u:%u", i > 0 ? " " : "",
-				hispeed_freqs[i].freq, hispeed_freqs[i].load);
-	}
-	ret += sprintf(buf + ret, "\n");
-	spin_unlock_irqrestore(&hispeed_freqs_lock, flags);
-
-	return ret;
-}
-
-static ssize_t store_hispeed_freq(struct kobject *kobj,
-				  struct attribute *attr, const char *buf,
-				  size_t count)
-{
-	int ntokens, i, ret = count;
-	unsigned int *tokens;
-	unsigned long flags;
-	struct hispeed_freq_level *new_hispeed_freqs;
-
-	tokens = get_tokenized_data(buf, &ntokens);
-	if (IS_ERR(tokens))
-		return PTR_RET(tokens);
-	if (ntokens % 2 != 0) {
-		ret = -EINVAL;
-		goto out;
-	}
-
-	new_hispeed_freqs = kzalloc(sizeof(*new_hispeed_freqs) * ntokens / 2,
-				    GFP_KERNEL);
-	if (!new_hispeed_freqs) {
-		ret = -ENOMEM;
-		goto out;
-	}
-	for (i = 0; i < ntokens / 2; i++) {
-		new_hispeed_freqs[i].freq = tokens[2 * i];
-		new_hispeed_freqs[i].load = tokens[2 * i + 1];
-		if (new_hispeed_freqs[i].load > 100) {
-			kfree(new_hispeed_freqs);
-			ret = -EINVAL;
-			goto out;
-		}
-		if (i > 0 && (new_hispeed_freqs[i].freq <=
-			      new_hispeed_freqs[i - 1].freq ||
-			      new_hispeed_freqs[i].load <=
-			      new_hispeed_freqs[i - 1].load)) {
-			kfree(new_hispeed_freqs);
-			ret = -EINVAL;
-			goto out;
-		}
-	}
-
-	spin_lock_irqsave(&hispeed_freqs_lock, flags);
-	kfree(hispeed_freqs);
-	hispeed_freqs = new_hispeed_freqs;
-	nhispeed_freqs = ntokens / 2;
-	spin_unlock_irqrestore(&hispeed_freqs_lock, flags);
-out:
-	kfree(tokens);
-	return ret;
-}
-
-static struct global_attr hispeed_freq_attr = __ATTR(hispeed_freq, 0644,
-		show_hispeed_freq, store_hispeed_freq);
-
-static ssize_t show_min_sample_time(struct kobject *kobj,
-				struct attribute *attr, char *buf)
-{
-	return sprintf(buf, "%lu\n", min_sample_time);
-}
-
-static ssize_t store_min_sample_time(struct kobject *kobj,
-			struct attribute *attr, const char *buf, size_t count)
-=======
 	spin_lock_irqsave(&tunables->above_hispeed_delay_lock, flags);
 
 	for (i = 0; i < tunables->nabove_hispeed_delay; i++)
@@ -1479,7 +827,6 @@ static ssize_t show_go_hispeed_load(struct cpufreq_interactive_tunables
 
 static ssize_t store_go_hispeed_load(struct cpufreq_interactive_tunables
 		*tunables, const char *buf, size_t count)
->>>>>>> android-branch/android-3.14
 {
 	int ret;
 	unsigned long val;
@@ -1487,23 +834,6 @@ static ssize_t store_go_hispeed_load(struct cpufreq_interactive_tunables
 	ret = strict_strtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
-<<<<<<< HEAD
-	min_sample_time = val;
-	return count;
-}
-
-static struct global_attr min_sample_time_attr = __ATTR(min_sample_time, 0644,
-		show_min_sample_time, store_min_sample_time);
-
-static ssize_t show_timer_rate(struct kobject *kobj,
-			struct attribute *attr, char *buf)
-{
-	return sprintf(buf, "%lu\n", timer_rate);
-}
-
-static ssize_t store_timer_rate(struct kobject *kobj,
-			struct attribute *attr, const char *buf, size_t count)
-=======
 	tunables->go_hispeed_load = val;
 	return count;
 }
@@ -1516,7 +846,6 @@ static ssize_t show_min_sample_time(struct cpufreq_interactive_tunables
 
 static ssize_t store_min_sample_time(struct cpufreq_interactive_tunables
 		*tunables, const char *buf, size_t count)
->>>>>>> android-branch/android-3.14
 {
 	int ret;
 	unsigned long val;
@@ -1524,23 +853,6 @@ static ssize_t store_min_sample_time(struct cpufreq_interactive_tunables
 	ret = strict_strtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
-<<<<<<< HEAD
-	timer_rate = val;
-	return count;
-}
-
-static struct global_attr timer_rate_attr = __ATTR(timer_rate, 0644,
-		show_timer_rate, store_timer_rate);
-
-static ssize_t show_input_boost(struct kobject *kobj, struct attribute *attr,
-				char *buf)
-{
-	return sprintf(buf, "%u\n", input_boost_val);
-}
-
-static ssize_t store_input_boost(struct kobject *kobj, struct attribute *attr,
-				 const char *buf, size_t count)
-=======
 	tunables->min_sample_time = val;
 	return count;
 }
@@ -1553,7 +865,6 @@ static ssize_t show_timer_rate(struct cpufreq_interactive_tunables *tunables,
 
 static ssize_t store_timer_rate(struct cpufreq_interactive_tunables *tunables,
 		const char *buf, size_t count)
->>>>>>> android-branch/android-3.14
 {
 	int ret;
 	unsigned long val;
@@ -1561,21 +872,6 @@ static ssize_t store_timer_rate(struct cpufreq_interactive_tunables *tunables,
 	ret = strict_strtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
-<<<<<<< HEAD
-	input_boost_val = val;
-	return count;
-}
-
-define_one_global_rw(input_boost);
-
-static ssize_t show_boost(struct kobject *kobj, struct attribute *attr,
-			  char *buf)
-{
-	return sprintf(buf, "%d\n", boost_val);
-}
-
-static ssize_t store_boost(struct kobject *kobj, struct attribute *attr,
-=======
 	tunables->timer_rate = val;
 	return count;
 }
@@ -1607,7 +903,6 @@ static ssize_t show_boost(struct cpufreq_interactive_tunables *tunables,
 }
 
 static ssize_t store_boost(struct cpufreq_interactive_tunables *tunables,
->>>>>>> android-branch/android-3.14
 			   const char *buf, size_t count)
 {
 	int ret;
@@ -1617,14 +912,6 @@ static ssize_t store_boost(struct cpufreq_interactive_tunables *tunables,
 	if (ret < 0)
 		return ret;
 
-<<<<<<< HEAD
-	boost_val = val;
-
-	if (boost_val) {
-		trace_cpufreq_interactive_boost("on");
-		cpufreq_interactive_boost();
-	} else {
-=======
 	tunables->boost_val = val;
 
 	if (tunables->boost_val) {
@@ -1633,20 +920,13 @@ static ssize_t store_boost(struct cpufreq_interactive_tunables *tunables,
 			cpufreq_interactive_boost(tunables);
 	} else {
 		tunables->boostpulse_endtime = ktime_to_us(ktime_get());
->>>>>>> android-branch/android-3.14
 		trace_cpufreq_interactive_unboost("off");
 	}
 
 	return count;
 }
 
-<<<<<<< HEAD
-define_one_global_rw(boost);
-
-static ssize_t store_boostpulse(struct kobject *kobj, struct attribute *attr,
-=======
 static ssize_t store_boostpulse(struct cpufreq_interactive_tunables *tunables,
->>>>>>> android-branch/android-3.14
 				const char *buf, size_t count)
 {
 	int ret;
@@ -1656,32 +936,6 @@ static ssize_t store_boostpulse(struct cpufreq_interactive_tunables *tunables,
 	if (ret < 0)
 		return ret;
 
-<<<<<<< HEAD
-	trace_cpufreq_interactive_boost("pulse");
-	cpufreq_interactive_boost();
-	return count;
-}
-
-static struct global_attr boostpulse =
-	__ATTR(boostpulse, 0200, NULL, store_boostpulse);
-
-static struct attribute *interactive_attributes[] = {
-	&above_hispeed_delay_attr.attr,
-	&hispeed_freq_attr.attr,
-	&min_sample_time_attr.attr,
-	&timer_rate_attr.attr,
-	&input_boost.attr,
-	&boost.attr,
-	&boostpulse.attr,
-	NULL,
-};
-
-static struct attribute_group interactive_attr_group = {
-	.attrs = interactive_attributes,
-	.name = "interactive",
-};
-
-=======
 	tunables->boostpulse_endtime = ktime_to_us(ktime_get()) +
 		tunables->boostpulse_duration_val;
 	trace_cpufreq_interactive_boost("pulse");
@@ -1856,7 +1110,6 @@ static struct attribute_group *get_sysfs_attr(void)
 		return &interactive_attr_group_gov_sys;
 }
 
->>>>>>> android-branch/android-3.14
 static int cpufreq_interactive_idle_notifier(struct notifier_block *nb,
 					     unsigned long val,
 					     void *data)

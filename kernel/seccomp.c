@@ -247,11 +247,7 @@ static inline void seccomp_assign_mode(struct task_struct *task,
 	 * Make sure TIF_SECCOMP cannot be set before the mode (and
 	 * filter) is set.
 	 */
-<<<<<<< HEAD
-	smp_mb__before_atomic_inc();
-=======
 	smp_mb();
->>>>>>> android-branch/android-3.14
 	set_tsk_thread_flag(task, TIF_SECCOMP);
 }
 
@@ -268,7 +264,6 @@ static int is_ancestor(struct seccomp_filter *parent,
 			return 1;
 	return 0;
 }
-<<<<<<< HEAD
 
 /**
  * seccomp_can_sync_threads: checks if all threads can be synchronized
@@ -366,105 +361,6 @@ static inline void seccomp_sync_threads(void)
 }
 
 /**
-=======
-
-/**
- * seccomp_can_sync_threads: checks if all threads can be synchronized
- *
- * Expects sighand and cred_guard_mutex locks to be held.
- *
- * Returns 0 on success, -ve on error, or the pid of a thread which was
- * either not in the correct seccomp mode or it did not have an ancestral
- * seccomp filter.
- */
-static inline pid_t seccomp_can_sync_threads(void)
-{
-	struct task_struct *thread, *caller;
-
-	BUG_ON(!mutex_is_locked(&current->signal->cred_guard_mutex));
-	assert_spin_locked(&current->sighand->siglock);
-
-	/* Validate all threads being eligible for synchronization. */
-	caller = current;
-	for_each_thread(caller, thread) {
-		pid_t failed;
-
-		/* Skip current, since it is initiating the sync. */
-		if (thread == caller)
-			continue;
-
-		if (thread->seccomp.mode == SECCOMP_MODE_DISABLED ||
-		    (thread->seccomp.mode == SECCOMP_MODE_FILTER &&
-		     is_ancestor(thread->seccomp.filter,
-				 caller->seccomp.filter)))
-			continue;
-
-		/* Return the first thread that cannot be synchronized. */
-		failed = task_pid_vnr(thread);
-		/* If the pid cannot be resolved, then return -ESRCH */
-		if (unlikely(WARN_ON(failed == 0)))
-			failed = -ESRCH;
-		return failed;
-	}
-
-	return 0;
-}
-
-/**
- * seccomp_sync_threads: sets all threads to use current's filter
- *
- * Expects sighand and cred_guard_mutex locks to be held, and for
- * seccomp_can_sync_threads() to have returned success already
- * without dropping the locks.
- *
- */
-static inline void seccomp_sync_threads(void)
-{
-	struct task_struct *thread, *caller;
-
-	BUG_ON(!mutex_is_locked(&current->signal->cred_guard_mutex));
-	assert_spin_locked(&current->sighand->siglock);
-
-	/* Synchronize all threads. */
-	caller = current;
-	for_each_thread(caller, thread) {
-		/* Skip current, since it needs no changes. */
-		if (thread == caller)
-			continue;
-
-		/* Get a task reference for the new leaf node. */
-		get_seccomp_filter(caller);
-		/*
-		 * Drop the task reference to the shared ancestor since
-		 * current's path will hold a reference.  (This also
-		 * allows a put before the assignment.)
-		 */
-		put_seccomp_filter(thread);
-		smp_store_release(&thread->seccomp.filter,
-				  caller->seccomp.filter);
-		/*
-		 * Opt the other thread into seccomp if needed.
-		 * As threads are considered to be trust-realm
-		 * equivalent (see ptrace_may_access), it is safe to
-		 * allow one thread to transition the other.
-		 */
-		if (thread->seccomp.mode == SECCOMP_MODE_DISABLED) {
-			/*
-			 * Don't let an unprivileged task work around
-			 * the no_new_privs restriction by creating
-			 * a thread that sets it up, enters seccomp,
-			 * then dies.
-			 */
-			if (task_no_new_privs(caller))
-				task_set_no_new_privs(thread);
-
-			seccomp_assign_mode(thread, SECCOMP_MODE_FILTER);
-		}
-	}
-}
-
-/**
->>>>>>> android-branch/android-3.14
  * seccomp_prepare_filter: Prepares a seccomp filter for use.
  * @fprog: BPF program to install
  *
@@ -472,6 +368,7 @@ static inline void seccomp_sync_threads(void)
  */
 static struct seccomp_filter *seccomp_prepare_filter(struct sock_fprog *fprog)
 {
+	unsigned long total_insns;
 	struct seccomp_filter *filter;
 	unsigned long fp_size;
 	long ret;
@@ -479,15 +376,11 @@ static struct seccomp_filter *seccomp_prepare_filter(struct sock_fprog *fprog)
 	if (fprog->len == 0 || fprog->len > BPF_MAXINSNS)
 		return ERR_PTR(-EINVAL);
 	BUG_ON(INT_MAX / fprog->len < sizeof(struct sock_filter));
-<<<<<<< HEAD
-	fp_size = fprog->len * sizeof(struct sock_filter);
-=======
 
 	for (filter = current->seccomp.filter; filter; filter = filter->prev)
 		total_insns += filter->len + 4;  /* include a 4 instr penalty */
 	if (total_insns > MAX_INSNS_PER_PATH)
 		return ERR_PTR(-ENOMEM);
->>>>>>> android-branch/android-3.14
 
 	/*
 	 * Installing a seccomp filter requires that the task have
@@ -504,11 +397,7 @@ static struct seccomp_filter *seccomp_prepare_filter(struct sock_fprog *fprog)
 	filter = kzalloc(sizeof(struct seccomp_filter) + fp_size,
 			 GFP_KERNEL|__GFP_NOWARN);
 	if (!filter)
-<<<<<<< HEAD
 		return ERR_PTR(-ENOMEM);
-=======
-		return ERR_PTR(-ENOMEM);;
->>>>>>> android-branch/android-3.14
 	atomic_set(&filter->usage, 1);
 	filter->len = fprog->len;
 
@@ -775,7 +664,6 @@ long prctl_get_seccomp(void)
 
 /**
  * seccomp_set_mode_strict: internal function for setting strict seccomp
-<<<<<<< HEAD
  *
  * Once current->seccomp.mode is non-zero, it may not be changed.
  *
@@ -809,41 +697,6 @@ out:
  * @flags:  flags to change filter behavior
  * @filter: struct sock_fprog containing filter
  *
-=======
- *
- * Once current->seccomp.mode is non-zero, it may not be changed.
- *
- * Returns 0 on success or -EINVAL on failure.
- */
-static long seccomp_set_mode_strict(void)
-{
-	const unsigned long seccomp_mode = SECCOMP_MODE_STRICT;
-	long ret = -EINVAL;
-
-	spin_lock_irq(&current->sighand->siglock);
-
-	if (!seccomp_may_assign_mode(seccomp_mode))
-		goto out;
-
-#ifdef TIF_NOTSC
-	disable_TSC();
-#endif
-	seccomp_assign_mode(current, seccomp_mode);
-	ret = 0;
-
-out:
-	spin_unlock_irq(&current->sighand->siglock);
-
-	return ret;
-}
-
-#ifdef CONFIG_SECCOMP_FILTER
-/**
- * seccomp_set_mode_filter: internal function for setting seccomp filter
- * @flags:  flags to change filter behavior
- * @filter: struct sock_fprog containing filter
- *
->>>>>>> android-branch/android-3.14
  * This function may be called repeatedly to install additional filters.
  * Every filter successfully installed will be evaluated (in reverse order)
  * for each system call the task makes.

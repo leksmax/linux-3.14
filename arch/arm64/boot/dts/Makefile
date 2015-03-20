@@ -5,5 +5,21 @@ dtb-$(CONFIG_ARCH_TEGRA) += tegra132-ryu-p1.dtb
 dtb-$(CONFIG_ARCH_TEGRA) += tegra132-ryu-p3.dtb
 dtb-$(CONFIG_ARCH_TEGRA) += tegra132-ryu-p4.dtb
 
+<<<<<<< HEAD
 always		:= $(dtb-y)
 clean-files	:= *.dtb
+=======
+targets += dtbs
+
+DTB_NAMES := $(subst $\",,$(CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES))
+ifneq ($(DTB_NAMES),)
+DTB_LIST := $(addsuffix .dtb,$(DTB_NAMES))
+else
+DTB_LIST := $(dtb-y)
+endif
+targets += $(DTB_LIST)
+
+dtbs: $(addprefix $(obj)/, $(DTB_LIST))
+
+clean-files := dts/*.dtb *.dtb
+>>>>>>> android-branch/android-3.14

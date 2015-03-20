@@ -25,8 +25,13 @@
 #define wfi()		asm volatile("wfi" : : : "memory")
 
 #define isb()		asm volatile("isb" : : : "memory")
+<<<<<<< HEAD
 #define dmb(opt)	asm volatile("dmb " #opt : : : "memory")
 #define dsb(opt)	asm volatile("dsb " #opt : : : "memory")
+=======
+#define dmb(opt)	asm volatile("dmb sy" : : : "memory")
+#define dsb(opt)	asm volatile("dsb sy" : : : "memory")
+>>>>>>> android-branch/android-3.14
 
 #define mb()		dsb(sy)
 #define rmb()		dsb(ld)

@@ -106,7 +106,11 @@ static int ecb_encrypt(struct blkcipher_desc *desc, struct scatterlist *dst,
 	for (first = 1; (blocks = (walk.nbytes / AES_BLOCK_SIZE)); first = 0) {
 		aes_ecb_encrypt(walk.dst.virt.addr, walk.src.virt.addr,
 				(u8 *)ctx->key_enc, rounds, blocks, first);
+<<<<<<< HEAD
 		err = blkcipher_walk_done(desc, &walk, 0);
+=======
+		err = blkcipher_walk_done(desc, &walk, walk.nbytes % AES_BLOCK_SIZE);
+>>>>>>> android-branch/android-3.14
 	}
 	kernel_neon_end();
 	return err;
@@ -128,7 +132,11 @@ static int ecb_decrypt(struct blkcipher_desc *desc, struct scatterlist *dst,
 	for (first = 1; (blocks = (walk.nbytes / AES_BLOCK_SIZE)); first = 0) {
 		aes_ecb_decrypt(walk.dst.virt.addr, walk.src.virt.addr,
 				(u8 *)ctx->key_dec, rounds, blocks, first);
+<<<<<<< HEAD
 		err = blkcipher_walk_done(desc, &walk, 0);
+=======
+		err = blkcipher_walk_done(desc, &walk, walk.nbytes % AES_BLOCK_SIZE);
+>>>>>>> android-branch/android-3.14
 	}
 	kernel_neon_end();
 	return err;
@@ -151,7 +159,11 @@ static int cbc_encrypt(struct blkcipher_desc *desc, struct scatterlist *dst,
 		aes_cbc_encrypt(walk.dst.virt.addr, walk.src.virt.addr,
 				(u8 *)ctx->key_enc, rounds, blocks, walk.iv,
 				first);
+<<<<<<< HEAD
 		err = blkcipher_walk_done(desc, &walk, 0);
+=======
+		err = blkcipher_walk_done(desc, &walk, walk.nbytes % AES_BLOCK_SIZE);
+>>>>>>> android-branch/android-3.14
 	}
 	kernel_neon_end();
 	return err;
@@ -174,7 +186,11 @@ static int cbc_decrypt(struct blkcipher_desc *desc, struct scatterlist *dst,
 		aes_cbc_decrypt(walk.dst.virt.addr, walk.src.virt.addr,
 				(u8 *)ctx->key_dec, rounds, blocks, walk.iv,
 				first);
+<<<<<<< HEAD
 		err = blkcipher_walk_done(desc, &walk, 0);
+=======
+		err = blkcipher_walk_done(desc, &walk, walk.nbytes % AES_BLOCK_SIZE);
+>>>>>>> android-branch/android-3.14
 	}
 	kernel_neon_end();
 	return err;
@@ -243,7 +259,11 @@ static int xts_encrypt(struct blkcipher_desc *desc, struct scatterlist *dst,
 		aes_xts_encrypt(walk.dst.virt.addr, walk.src.virt.addr,
 				(u8 *)ctx->key1.key_enc, rounds, blocks,
 				(u8 *)ctx->key2.key_enc, walk.iv, first);
+<<<<<<< HEAD
 		err = blkcipher_walk_done(desc, &walk, 0);
+=======
+		err = blkcipher_walk_done(desc, &walk, walk.nbytes % AES_BLOCK_SIZE);
+>>>>>>> android-branch/android-3.14
 	}
 	kernel_neon_end();
 
@@ -267,7 +287,11 @@ static int xts_decrypt(struct blkcipher_desc *desc, struct scatterlist *dst,
 		aes_xts_decrypt(walk.dst.virt.addr, walk.src.virt.addr,
 				(u8 *)ctx->key1.key_dec, rounds, blocks,
 				(u8 *)ctx->key2.key_enc, walk.iv, first);
+<<<<<<< HEAD
 		err = blkcipher_walk_done(desc, &walk, 0);
+=======
+		err = blkcipher_walk_done(desc, &walk, walk.nbytes % AES_BLOCK_SIZE);
+>>>>>>> android-branch/android-3.14
 	}
 	kernel_neon_end();
 

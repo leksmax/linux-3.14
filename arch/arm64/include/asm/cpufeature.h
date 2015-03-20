@@ -26,4 +26,10 @@ static inline bool cpu_have_feature(unsigned int num)
 	return elf_hwcap & (1UL << num);
 }
 
+<<<<<<< HEAD
+=======
+bool cpu_supports_mixed_endian_el0(void);
+bool system_supports_mixed_endian_el0(void);
+
+>>>>>>> android-branch/android-3.14
 #endif

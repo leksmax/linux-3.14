@@ -2,7 +2,11 @@
  * arch/arm64/include/asm/seccomp.h
  *
  * Copyright (C) 2014 Linaro Limited
+<<<<<<< HEAD
  * Author: AKASHI Takahiro <takahiro.akashi@linaro.org>
+=======
+ * Author: AKASHI Takahiro <takahiro.akashi <at> linaro.org>
+>>>>>>> android-branch/android-3.14
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -14,8 +18,11 @@
 #include <asm/unistd.h>
 
 #ifdef CONFIG_COMPAT
+<<<<<<< HEAD
 #include <asm/unistd32.h>
 
+=======
+>>>>>>> android-branch/android-3.14
 #define __NR_seccomp_read_32		__NR_compat_read
 #define __NR_seccomp_write_32		__NR_compat_write
 #define __NR_seccomp_exit_32		__NR_compat_exit

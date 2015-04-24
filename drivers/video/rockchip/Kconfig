@@ -1,9 +1,9 @@
 menuconfig FB_ROCKCHIP
 	tristate "Frame buffer support for Rockchip "
 	depends on FB
-	select FB_SYS_FILLRECT
-	select FB_SYS_COPYAREA
-	select FB_SYS_IMAGEBLIT
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
 	select FB_MODE_HELPERS
 	select VIDEOMODE_HELPERS
         help

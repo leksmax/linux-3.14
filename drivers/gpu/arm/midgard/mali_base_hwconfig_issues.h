@@ -597,6 +597,7 @@ static const enum base_hw_issue base_hw_issues_tFRx_r0p0[] = {
 	BASE_HW_ISSUE_T76X_3960,
 	BASE_HW_ISSUE_END
 };
+
 #endif /* defined(MALI_INCLUDE_TFRX) */
 
 #if defined(MALI_INCLUDE_TFRX)
@@ -615,6 +616,7 @@ static const enum base_hw_issue base_hw_issues_tFRx_r0p1[] = {
 	BASE_HW_ISSUE_T76X_3960,
 	BASE_HW_ISSUE_END
 };
+
 #endif /* defined(MALI_INCLUDE_TFRX) */
 
 #if defined(MALI_INCLUDE_TFRX)

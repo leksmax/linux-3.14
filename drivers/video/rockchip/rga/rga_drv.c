@@ -108,6 +108,8 @@ struct rga_drvdata {
 
 static struct rga_drvdata *drvdata;
 rga_service_info rga_service;
+struct rga_mmu_buf_t rga_mmu_buf;
+
 
 #if defined(CONFIG_ION_ROCKCHIP)
 extern struct ion_client *rockchip_ion_client_create(const char * name);
@@ -120,7 +122,7 @@ static void rga_try_set_reg(void);
 
 
 /* Logging */
-#define RGA_DEBUG 0
+#define RGA_DEBUG 1
 #if RGA_DEBUG
 #define DBG(format, args...) printk(KERN_DEBUG "%s: " format, DRIVER_NAME, ## args)
 #define ERR(format, args...) printk(KERN_ERR "%s: " format, DRIVER_NAME, ## args)
@@ -637,7 +639,7 @@ static void rga_try_set_reg(void)
             dmac_flush_range(&rga_service.cmd_buff[0], &rga_service.cmd_buff[28]);
             outer_flush_range(virt_to_phys(&rga_service.cmd_buff[0]),virt_to_phys(&rga_service.cmd_buff[28]));
 
-            #if defined(CONFIG_ARCH_RK30)
+            #if 1 
             rga_soft_reset();
             #endif
 
@@ -700,11 +702,14 @@ static void rga_del_running_list(void)
     {
         reg = list_entry(rga_service.running.next, struct rga_reg, status_link);
 
-        if(reg->MMU_base != NULL)
+        if(reg->MMU_len != 0)
         {
-            kfree(reg->MMU_base);
-            reg->MMU_base = NULL;
+            if (rga_mmu_buf.back + reg->MMU_len > 2*rga_mmu_buf.size)
+                rga_mmu_buf.back = reg->MMU_len + rga_mmu_buf.size;
+            else
+                rga_mmu_buf.back += reg->MMU_len;
         }
+
         atomic_sub(1, &reg->session->task_running);
         atomic_sub(1, &rga_service.total_running);
 
@@ -807,9 +812,13 @@ static int rga_convert_dma_buf(struct rga_req *req)
 	ion_phys_addr_t phy_addr;
 	size_t len;
     int ret;
+    uint32_t src_offset, dst_offset;
 
     req->sg_src  = NULL;
     req->sg_dst  = NULL;
+    
+	  src_offset = req->line_draw_info.flag;
+	  dst_offset = req->line_draw_info.line_width;
 
     if(req->src.yrgb_addr) {
         hdl = ion_import_dma_buf(drvdata->ion_client, req->src.yrgb_addr);
@@ -826,7 +835,7 @@ static int rga_convert_dma_buf(struct rga_req *req)
         }
         else {
             ion_phys(drvdata->ion_client, hdl, &phy_addr, &len);
-            req->src.yrgb_addr = phy_addr;
+            req->src.yrgb_addr = phy_addr + src_offset;
             req->src.uv_addr = req->src.yrgb_addr + (req->src.vir_w * req->src.vir_h);
             req->src.v_addr = req->src.uv_addr + (req->src.vir_w * req->src.vir_h)/4;
         }
@@ -853,7 +862,7 @@ static int rga_convert_dma_buf(struct rga_req *req)
         }
         else {
             ion_phys(drvdata->ion_client, hdl, &phy_addr, &len);
-            req->dst.yrgb_addr = phy_addr;
+            req->dst.yrgb_addr = phy_addr + dst_offset;
             req->dst.uv_addr = req->dst.yrgb_addr + (req->dst.vir_w * req->dst.vir_h);
             req->dst.v_addr = req->dst.uv_addr + (req->dst.vir_w * req->dst.vir_h)/4;
         }
@@ -1339,26 +1348,31 @@ static int __init rga_init(void)
 
     /* malloc pre scale mid buf mmu table */
     mmu_buf = kzalloc(1024*8, GFP_KERNEL);
-    if(mmu_buf == NULL)
-    {
+    if(mmu_buf == NULL) {
         printk(KERN_ERR "RGA get Pre Scale buff failed. \n");
         return -1;
     }
 
     /* malloc 4 M buf */
-    for(i=0; i<1024; i++)
-    {
+    for(i=0; i<1024; i++) {
         buf_p = (uint32_t *)__get_free_page(GFP_KERNEL|__GFP_ZERO);
-        if(buf_p == NULL)
-        {
+        if(buf_p == NULL) {
             printk(KERN_ERR "RGA init pre scale buf falied\n");
             return -ENOMEM;
         }
-
         mmu_buf[i] = virt_to_phys((void *)((uint32_t)buf_p));
     }
 
     rga_service.pre_scale_buf = (uint32_t *)mmu_buf;
+
+    buf_p = kmalloc(1024*256, GFP_KERNEL);
+    rga_mmu_buf.buf_virtual = buf_p;
+    rga_mmu_buf.buf = (uint32_t *)virt_to_phys((void *)((uint32_t)buf_p));
+    rga_mmu_buf.front = 0;
+    rga_mmu_buf.back = 64*1024;
+    rga_mmu_buf.size = 64*1024;
+
+    rga_mmu_buf.pages = kmalloc((32768)* sizeof(struct page *), GFP_KERNEL);
 
 	if ((ret = platform_driver_register(&rga_driver)) != 0)
 	{
@@ -1413,6 +1427,13 @@ static void __exit rga_exit(void)
     if(rga_service.pre_scale_buf != NULL) {
         kfree((uint8_t *)rga_service.pre_scale_buf);
     }
+
+    if (rga_mmu_buf.buf_virtual)
+        kfree(rga_mmu_buf.buf_virtual);
+
+    if (rga_mmu_buf.pages)
+        kfree(rga_mmu_buf.pages);
+
 	platform_driver_unregister(&rga_driver);
 }
 

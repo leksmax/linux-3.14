@@ -30,11 +30,11 @@
 #include <linux/kthread.h>
 
 
-#define RK30_MAX_LCDC_SUPPORT	4
-#define RK30_MAX_LAYER_SUPPORT	4
-#define RK_MAX_FB_SUPPORT       4
+#define RK30_MAX_LCDC_SUPPORT	2
+#define RK30_MAX_LAYER_SUPPORT	5
+#define RK_MAX_FB_SUPPORT       5
 #define RK_WIN_MAX_AREA		4
-#define RK_MAX_BUF_NUM       	10
+#define RK_MAX_BUF_NUM		11
 
 #define FB0_IOCTL_STOP_TIMER_FLUSH		0x6001
 #define FB0_IOCTL_SET_PANEL				0x6002
@@ -127,6 +127,7 @@ extern bool rk_fb_poll_wait_frame_complete(void);
 #define OUT_CCIR656         6
 #define OUT_S888            8
 #define OUT_S888DUMY        12
+#define OUT_YUV_420	    14
 #define OUT_RGB_AAA	    15
 #define OUT_P16BPP4         24
 #define OUT_D888_P666       0x21	//18bit screen,connect to lcdc D2~D7, D10~D15, D18~D23
@@ -273,7 +274,7 @@ struct pwr_ctr {
 	int is_rst;
 	int gpio;
 	int atv_val;
-	char rgl_name[32];
+	const char *rgl_name;
 	int volt;
 	int delay;
 };
@@ -293,7 +294,7 @@ typedef enum _TRSP_MODE {
 	TRSP_INVAL
 } TRSP_MODE;
 
-struct rk_lcdc_post_cfg{
+struct rk_lcdc_post_cfg {
 	u32 xpos;
 	u32 ypos;
 	u32 xsize;
@@ -309,18 +310,23 @@ struct rk_lcdc_bcsh {
 	u16 cos_hue;
 };
 
-struct rk_lcdc_win_area{
+struct rk_lcdc_win_area {
 	bool state;
+	enum data_format format;
+	u8 fmt_cfg;
+	u8 swap_rb;
 	u32 y_offset;		/*yuv/rgb offset  -->LCDC_WINx_YRGB_MSTx*/
 	u32 c_offset;		/*cb cr offset--->LCDC_WINx_CBR_MSTx*/
-	u32 xpos;		/*start point in panel  --->LCDC_WINx_DSP_ST*/
-	u32 ypos;
+	u16 xpos;		/*start point in panel  --->LCDC_WINx_DSP_ST*/
+	u16 ypos;
 	u16 xsize;		/* display window width/height  -->LCDC_WINx_DSP_INFO*/
 	u16 ysize;
 	u16 xact;		/*origin display window size -->LCDC_WINx_ACT_INFO*/
 	u16 yact;
 	u16 xvir;		/*virtual width/height     -->LCDC_WINx_VIR*/
 	u16 yvir;
+	u16 xoff;		/*mem offset*/
+	u16 yoff;
 	unsigned long smem_start;
 	unsigned long cbr_start;	/*Cbr memory start address*/
 #if defined(CONFIG_ION_ROCKCHIP)
@@ -328,28 +334,37 @@ struct rk_lcdc_win_area{
 		int dma_buf_fd;
 		struct dma_buf *dma_buf;
 #endif
-	u32 dsp_stx;
-	u32 dsp_sty;
-	u32 y_vir_stride;
-	u32 uv_vir_stride;
+	u16 dsp_stx;
+	u16 dsp_sty;
+	u16 y_vir_stride;
+	u16 uv_vir_stride;
 	u32 y_addr;
 	u32 uv_addr;
 
+	u8  fbdc_en;
+	u8  fbdc_cor_en;
+	u8  fbdc_data_format;
+	u8  fbdc_dsp_width_ratio;
+	u8  fbdc_fmt_cfg;
+	u16 fbdc_mb_vir_width;
+	u16 fbdc_mb_vir_height;
+	u16 fbdc_mb_width;
+	u16 fbdc_mb_height;
+	u16 fbdc_mb_xst;
+	u16 fbdc_mb_yst;
+	u16 fbdc_num_tiles;
+	u16 fbdc_cmp_index_init;
 };
 
 
 struct rk_lcdc_win {
 	char name[5];
 	int id;
-	u32 logicalstate;
 	bool state;		/*on or off*/
 	bool last_state;		/*on or off*/
 	u32 pseudo_pal[16];
-	enum data_format format;
 	int z_order;		/*win sel layer*/
-	u8 fmt_cfg;
-	u8 fmt_10;;
-	u8 swap_rb;
+	u8 fmt_10;
 	u32 reserved;
 	u32 area_num;
 	u32 scale_yrgb_x;
@@ -377,8 +392,9 @@ struct rk_lcdc_win {
 	u8 vsd_cbr_gt2;
 
 	u8 alpha_en;
-	u32 alpha_mode;
-	u32 g_alpha_val;
+	u8 alpha_mode;
+	u16 g_alpha_val;
+	u8  mirror_en;
 	u32 color_key_val;
 	u8 csc_mode;
 
@@ -412,6 +428,12 @@ struct rk_lcdc_drv_ops {
 	ssize_t(*get_disp_info) (struct rk_lcdc_driver *dev_drv, char *buf,
 				  int layer_id);
 	int (*load_screen) (struct rk_lcdc_driver *dev_drv, bool initscreen);
+	int (*get_dspbuf_info) (struct rk_lcdc_driver *dev_drv,
+				u16 *xact, u16 *yact, int *format,
+				u32 *dsp_addr);
+	int (*post_dspbuf)(struct rk_lcdc_driver *dev_drv, u32 rgb_mst,
+			   int format, u16 xact, u16 yact, u16 xvir);
+
 	int (*get_win_state) (struct rk_lcdc_driver *dev_drv, int layer_id);
 	int (*ovl_mgr) (struct rk_lcdc_driver *dev_drv, int swap, bool set);	/*overlay manager*/
 	int (*fps_mgr) (struct rk_lcdc_driver *dev_drv, int fps, bool set);
@@ -445,55 +467,64 @@ struct rk_lcdc_drv_ops {
 };
 
 struct rk_fb_area_par {
-	int ion_fd;
+	u8  data_format;        /*layer data fmt*/
+	short ion_fd;
 	unsigned long phy_addr;
-	int acq_fence_fd;
-	u32 x_offset;
-	u32 y_offset;
-	u32 xpos;		/*start point in panel  --->LCDC_WINx_DSP_ST*/
-	u32 ypos;
-	u32 xsize;		/* display window width/height  -->LCDC_WINx_DSP_INFO*/
-	u32 ysize;
-	u32 xact;		/*origin display window size -->LCDC_WINx_ACT_INFO*/
-	u32 yact;
-	u32 xvir;		/*virtual width/height     -->LCDC_WINx_VIR*/
-	u32 yvir;
+	short acq_fence_fd;
+	u16  x_offset;
+	u16  y_offset;
+	u16 xpos;	/*start point in panel  --->LCDC_WINx_DSP_ST*/
+	u16 ypos;
+	u16 xsize;	/* display window width/height  -->LCDC_WINx_DSP_INFO*/
+	u16 ysize;
+	u16 xact;	/*origin display window size -->LCDC_WINx_ACT_INFO*/
+	u16 yact;
+	u16 xvir;	/*virtual width/height     -->LCDC_WINx_VIR*/
+	u16 yvir;
+	u8  fbdc_en;
+	u8  fbdc_cor_en;
+	u8  fbdc_data_format;
+	u16 reserved0;
+	u32 reserved1;
 };
 
 
 struct rk_fb_win_par {
-	u8 data_format;        /*layer data fmt*/
-	u8 win_id;
-	u8 z_order;		/*win sel layer*/
+	u8  win_id;
+	u8  z_order;		/*win sel layer*/
+	u8  alpha_mode;
+	u16 g_alpha_val;
+	u8  mirror_en;
 	struct rk_fb_area_par area_par[RK_WIN_MAX_AREA];
-	u32 alpha_mode;
-	u32 g_alpha_val;
+	u32 reserved0;
 };
 
 struct rk_fb_win_cfg_data {
-	int ret_fence_fd;
-	int rel_fence_fd[RK_MAX_BUF_NUM];
+	u8  wait_fs;
+	short ret_fence_fd;
+	short rel_fence_fd[RK_MAX_BUF_NUM];
 	struct  rk_fb_win_par win_par[RK30_MAX_LAYER_SUPPORT];
 	struct  rk_lcdc_post_cfg post_cfg;
-	u8      wait_fs;
-	//u8      fence_begin;
 };
 
 struct rk_fb_reg_area_data {
 	struct sync_fence *acq_fence;
+	u8 data_format;        /*layer data fmt*/
 	u8  index_buf;          /*judge if the buffer is index*/
 	u32 y_offset;		/*yuv/rgb offset  -->LCDC_WINx_YRGB_MSTx*/
 	u32 c_offset;		/*cb cr offset--->LCDC_WINx_CBR_MSTx*/
 	u32 y_vir_stride;
 	u32 uv_vir_stride;
-	u32 xpos;		/*start point in panel  --->LCDC_WINx_DSP_ST*/
-	u32 ypos;
+	u16 xpos;		/*start point in panel  --->LCDC_WINx_DSP_ST*/
+	u16 ypos;
 	u16 xsize;		/* display window width/height  -->LCDC_WINx_DSP_INFO*/
 	u16 ysize;
 	u16 xact;		/*origin display window size -->LCDC_WINx_ACT_INFO*/
 	u16 yact;
 	u16 xvir;		/*virtual width/height     -->LCDC_WINx_VIR*/
 	u16 yvir;
+	u16 xoff;		/*mem offset*/
+	u16 yoff;
 	unsigned long smem_start;
 	unsigned long cbr_start;	/*Cbr memory start address*/
 	u32 line_length;	
@@ -503,38 +534,38 @@ struct rk_fb_reg_area_data {
 	struct dma_buf_attachment *attachment;
 	struct sg_table *sg_table;
 	dma_addr_t dma_addr;
-#endif	
+#endif
+	u8  fbdc_en;
+	u8  fbdc_cor_en;
+	u8  fbdc_data_format;
 };
 
 struct rk_fb_reg_win_data {
-	u8 data_format;        /*layer data fmt*/
 	u8 win_id;
 	u8 z_order;		/*win sel layer*/
 	u32 area_num;		/*maybe two region have the same dma buff,*/
 	u32 area_buf_num;     /*so area_num  maybe not equal to area_buf_num*/
 	u8 alpha_en;
-	u32 alpha_mode;
-	u32 g_alpha_val;
-	u32 color_key_val;
+	u8 alpha_mode;
+	u16 g_alpha_val;
+	u8  mirror_en;
 
 	struct rk_fb_reg_area_data reg_area_data[RK_WIN_MAX_AREA];
 };
 
 struct rk_fb_reg_data {
 	struct list_head list;
-	int     win_num;
-	int     buf_num;
-	int 	acq_num;
+	int    win_num;
+	int    buf_num;
+	int    acq_num;
 	struct rk_fb_reg_win_data reg_win_data[RK30_MAX_LAYER_SUPPORT];
 	struct rk_lcdc_post_cfg post_cfg;
-	//struct sync_fence *acq_fence[RK_MAX_BUF_NUM];
-	//int     fence_wait_begin;
 };
 
 struct rk_lcdc_driver {
 	char name[6];
-	int id;
-	int prop;
+	int  id;
+	int  prop;
 	struct device *dev;
 
 	struct rk_lcdc_win *win[RK_MAX_FB_SUPPORT];
@@ -551,18 +582,26 @@ struct rk_lcdc_driver {
 	u16 overlay_mode;
 	u16 output_color;
 
-	u16 fb_win_map;
+	u16  fb_win_map;
 	char fb0_win_id;
 	char fb1_win_id;
 	char fb2_win_id;
 	char fb3_win_id;
+	char fb4_win_id;
 	
 	char mmu_dts_name[40];
 	struct device *mmu_dev;
 	int iommu_enabled;
 
 	struct rk_fb_reg_area_data reg_area_data;
+	/*
+	 * front_regs means this config is scaning on the devices.
+	 */
+	struct rk_fb_reg_data *front_regs;
+	struct mutex front_lock;
+
 	struct mutex fb_win_id_mutex;
+	struct mutex win_config;
 
 	struct completion frame_done;	/*sync for pan_display,whe we set a new
 					  frame address to lcdc register,we must
@@ -576,6 +615,7 @@ struct rk_lcdc_driver {
 	int			timeline_max;
 	int			suspend_flag;
 	struct list_head	update_regs_list;
+	struct list_head	saved_list;
 	struct mutex		update_regs_list_lock;
 	struct kthread_worker	update_regs_worker;
 	struct task_struct	*update_regs_thread;
@@ -594,6 +634,22 @@ struct rk_lcdc_driver {
 	struct rk_lcdc_bcsh bcsh;
 	int *hwc_lut;
 	int uboot_logo;
+	int bcsh_init_status;
+};
+
+struct rk_fb_par {
+	int id;
+	u32 state;
+
+	unsigned long fb_phy_base;	/* Start of fb address (physical address) */
+	char __iomem *fb_virt_base;	/* Start of fb address (virt address) */
+	u32 fb_size;
+	struct rk_lcdc_driver *lcdc_drv;
+
+#if defined(CONFIG_ION_ROCKCHIP)
+	struct ion_handle *ion_hdl;
+#endif
+	u32 reserved[2];
 };
 
 /*disp_mode: dual display mode
@@ -606,12 +662,10 @@ struct rk_lcdc_driver {
 
 struct rk_fb {
 	int disp_mode;
+	int disp_policy;
 	struct rk29fb_info *mach_info;
 	struct fb_info *fb[RK_MAX_FB_SUPPORT*2];
 	int num_fb;
-	unsigned long fb_phy_base;		/* Start of fb address */
-	unsigned long ext_fb_phy_base;		/* Start of extend fb address */
-						/* (physical address) */
 	struct rk_lcdc_driver *lcdc_dev_drv[RK30_MAX_LCDC_SUPPORT];
 	int num_lcdc;
 
@@ -653,4 +707,5 @@ extern int rk_get_real_fps(int time);
 extern struct device *rk_fb_get_sysmmu_device_by_compatible(const char *compt);
 extern void rk_fb_platform_set_sysmmu(struct device *sysmmu,
                                       struct device *dev);
+int rk_fb_get_display_policy(void);
 #endif

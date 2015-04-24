@@ -2,7 +2,7 @@
  * drivers/video/rockchip/rk_fb.c
  *
  * Copyright (C) ROCKCHIP, Inc.
- * Author: Mark Yao <mark.yao@rock-chips.com>
+ * Author:yzq<yxj@rock-chips.com>
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
  * may be copied, distributed, and modified under those terms.
@@ -601,14 +601,17 @@ int rk_fb_register(struct rk_lcdc_driver *dev_drv,
 		drm_display->is_connected = 1;
 		memcpy(&modelist_new->mode,&dev_drv->cur_screen->mode,sizeof(struct fb_videomode));
 
+	//	printk("---->yzq mode xres=%d yres=%d \n",modelist_new->mode.xres,modelist_new->mode.yres);
 		list_add_tail(&modelist_new->list,drm_display->modelist);
 
 		modelist = list_first_entry(drm_display->modelist, struct fb_modelist, list);
 		mode=&modelist->mode;
+	//	printk("---->yzq 1mode xres=%d yres=%d \n",mode->xres,mode->yres);
 
 	}else if(dev_drv->prop == EXTEND){
 		struct list_head *modelist;
 		drm_screen_priv->ex_display = rk_drm_extend_display_get(SCREEN_HDMI);
+	//	printk("------>yzq ex_display=%x\n",drm_screen_priv->ex_display);
 		drm_display->screen_type = RK_DRM_EXTEND_SCREEN;
 		drm_display->is_connected = 0;
 #if 0
@@ -751,8 +754,10 @@ int rk_fb_switch_screen(struct rk_screen *screen , int enable, int lcdc_id)
 		drm_disp->is_connected = true;
 		drm_disp->event_call_back(drm_disp,0,RK_DRM_CALLBACK_HOTPLUG);
 	}else{
+//	printk("----->yzq %s %d \n",__func__,__LINE__);
 		drm_disp->is_connected = false;
 		drm_disp->event_call_back(drm_disp,0,RK_DRM_CALLBACK_HOTPLUG);
+//	printk("----->yzq %s %d \n",__func__,__LINE__);
 	}
 
 
@@ -769,6 +774,7 @@ static int rk_drm_screen_videomode_set(struct rk_drm_display *drm_disp)
 		return -1;
 	}
 
+//	printk("----->yzq %s %d xres=%d yres=%d refresh=%d \n",__func__,__LINE__,mode->xres,mode->yres,mode->refresh);
 	if(lcdc_dev->prop == PRMRY){
 		if(mode != &lcdc_dev->cur_screen->mode)
 			memcpy(&lcdc_dev->cur_screen->mode,mode,sizeof(struct fb_videomode));
@@ -778,6 +784,7 @@ static int rk_drm_screen_videomode_set(struct rk_drm_display *drm_disp)
 		if(ex_display == NULL)
 			ex_display = rk_drm_extend_display_get(SCREEN_HDMI);
 
+	//	printk("------>yzq ex_display=%x\n",ex_display);
 		if(ex_display == NULL){
 			printk(KERN_ERR"-->%s can not find extend display ops\n",__func__);
 			return -1;

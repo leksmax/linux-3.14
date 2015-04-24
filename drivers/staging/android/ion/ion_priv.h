@@ -49,7 +49,7 @@ struct ion_buffer *ion_handle_buffer(struct ion_handle *handle);
 struct ion_iommu_map {
 	unsigned long iova_addr;
 	struct rb_node node;
-	uint32_t key;
+	unsigned long key;
 	struct ion_buffer *buffer;
 	struct kref ref;
 	int mapped_size;
@@ -344,6 +344,7 @@ size_t ion_heap_freelist_size(struct ion_heap *heap);
 
 struct ion_heap *ion_heap_create(struct ion_platform_heap *);
 void ion_heap_destroy(struct ion_heap *);
+
 struct ion_heap *ion_system_heap_create(struct ion_platform_heap *);
 void ion_system_heap_destroy(struct ion_heap *);
 
@@ -355,8 +356,12 @@ void ion_carveout_heap_destroy(struct ion_heap *);
 
 struct ion_heap *ion_chunk_heap_create(struct ion_platform_heap *);
 void ion_chunk_heap_destroy(struct ion_heap *);
+
 struct ion_heap *ion_cma_heap_create(struct ion_platform_heap *);
 void ion_cma_heap_destroy(struct ion_heap *);
+
+struct ion_heap *ion_drm_heap_create(struct ion_platform_heap *);
+void ion_drm_heap_destroy(struct ion_heap *);
 
 /**
  * kernel api to allocate/free from carveout -- used when carveout is

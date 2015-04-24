@@ -67,7 +67,7 @@ int mali_dvfs_clk_set(struct clk *node,unsigned long rate)
 	}
 	return ret;
 }
-static int kbase_platform_power_clock_init(kbase_device *kbdev)
+static int kbase_platform_power_clock_init(struct kbase_device *kbdev)
 {
 	/*struct device *dev = kbdev->dev;*/
 	struct rk_context *platform;
@@ -75,7 +75,7 @@ static int kbase_platform_power_clock_init(kbase_device *kbdev)
 	platform = (struct rk_context *)kbdev->platform_context;
 	if (NULL == platform)
 		panic("oops");
-	
+#if 0	
 	/* enable mali t760 powerdomain*/	
 	platform->mali_pd = clk_get(NULL,"pd_gpu");
 	if(IS_ERR_OR_NULL(platform->mali_pd))
@@ -90,9 +90,9 @@ static int kbase_platform_power_clock_init(kbase_device *kbdev)
 		printk("mali pd enabled\n");
 	}
 	mali_pd_status = 1;
-	
+#endif	
 	/* enable mali t760 clock */
-	platform->mali_clk_node = clk_get(NULL, "clk_gpu");
+	platform->mali_clk_node = devm_clk_get(kbdev->dev, "aclk_gpu");
 	if (IS_ERR_OR_NULL(platform->mali_clk_node)) 
 	{
 		platform->mali_clk_node = NULL;
@@ -110,8 +110,10 @@ static int kbase_platform_power_clock_init(kbase_device *kbdev)
 	return 0;
 	
 out:
+#if 0
 	if(platform->mali_pd)
 		clk_put(platform->mali_pd);
+#endif
 	
 	return -EPERM;
 
@@ -175,7 +177,7 @@ int kbase_platform_power_on(struct kbase_device *kbdev)
 
 	if (mali_pd_status == 1)
 		return 0;
-#if 1	
+#if 0	
 	if(platform->mali_pd)
 		clk_prepare_enable(platform->mali_pd);
 #endif
@@ -198,7 +200,7 @@ int kbase_platform_power_off(struct kbase_device *kbdev)
 
 	if (mali_pd_status== 0)
 		return 0;
-#if 1
+#if 0
 	if(platform->mali_pd)
 		clk_disable_unprepare(platform->mali_pd);
 #endif
@@ -837,10 +839,12 @@ int kbase_platform_create_sysfs_file(struct device *dev)
 		goto out;
 	}
 
+    /*  rk_ext : device will crash after "cat /sys/devices/ffa30000.gpu/dtlb".
 	if (device_create_file(dev, &dev_attr_dtlb)) {
 		dev_err(dev, "Couldn't create sysfs file [dtlb]\n");
 		goto out;
 	}
+    */
 
 	if (device_create_file(dev, &dev_attr_dvfs)) {
 		dev_err(dev, "Couldn't create sysfs file [dvfs]\n");
@@ -926,7 +930,7 @@ mali_error kbase_platform_init(struct kbase_device *kbdev)
 	return MALI_ERROR_FUNCTION_FAILED;
 }
 
-void kbase_platform_term(kbase_device *kbdev)
+void kbase_platform_term(struct kbase_device *kbdev)
 {
 	struct rk_context *platform;
 
